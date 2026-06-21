@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SignAI — ASL Video Accessibility</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SignAI</h1>
+      <p class="tagline">Instant ASL sign language for any video</p>
+    </header>
+
+    <main>
+      <div class="input-section">
+        <div class="tabs">
+          <button class="tab active" data-tab="url">Video URL</button>
+          <button class="tab" data-tab="upload">Upload File</button>
+        </div>
+
+        <div class="tab-content active" id="tab-url">
+          <input
+            type="url"
+            id="video-url"
+            placeholder="Paste a video URL..."
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="tab-content" id="tab-upload">
+          <label class="upload-area" id="upload-label">
+            <span id="upload-text">Click or drag a video file here</span>
+            <input type="file" id="video-file" accept="video/*" hidden />
+          </label>
+        </div>
+
+        <div class="options">
+          <label>Avatar position
+            <select id="pip-position">
+              <option value="bottom-right">Bottom right</option>
+              <option value="bottom-left">Bottom left</option>
+              <option value="top-right">Top right</option>
+              <option value="top-left">Top left</option>
+            </select>
+          </label>
+        </div>
+
+        <button id="submit-btn" class="primary-btn">Generate ASL Video</button>
+      </div>
+
+      <div class="result-section hidden" id="result-section">
+        <div class="loader hidden" id="loader">
+          <div class="spinner"></div>
+          <p id="loader-text">Processing your video...</p>
+        </div>
+
+        <div class="output hidden" id="output">
+          <h2>Your ASL Video</h2>
+          <video id="output-video" controls playsinline></video>
+
+          <div class="meta">
+            <div class="meta-row">
+              <span class="label">Transcript</span>
+              <span id="meta-transcript" class="value"></span>
+            </div>
+            <div class="meta-row">
+              <span class="label">ASL Gloss</span>
+              <span id="meta-gloss" class="value"></span>
+            </div>
+            <div class="meta-row">
+              <span class="label">Signs matched</span>
+              <span id="meta-coverage" class="value"></span>
+            </div>
+          </div>
+
+          <a id="download-btn" class="primary-btn" download="signai-output.mp4">
+            Download Video
+          </a>
+        </div>
+
+        <div class="error hidden" id="error-box">
+          <p id="error-text"></p>
+          <button id="retry-btn" class="secondary-btn">Try again</button>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <p>Built with <a href="https://pika.art" target="_blank">Pika</a> · Hackathon 2025</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -22,7 +22,7 @@ Input Video
 [Pika: transcribe_audio]
     │
     ▼
-Text → ASL Gloss tokens (via Claude API)
+Text → ASL Gloss tokens (via Claude API)/
     │
     ▼
 Dictionary Lookup (word → Pika-generated sign clip)
