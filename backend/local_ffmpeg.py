@@ -86,12 +86,15 @@ def pip_overlay(base_path: str, overlay_path: str, position: str = "bottom-right
     output_name = f"result_{uuid.uuid4().hex}.mp4"
     output_path = str(OUTPUT_DIR / output_name)
 
+    # Scale overlay to 1/3 of the base video's height, preserving aspect ratio.
+    # scale2ref ensures the avatar is consistently sized relative to the base video
+    # regardless of the base video's resolution.
     _run([
         FFMPEG, "-y",
         "-i", base_path,
         "-i", overlay_path,
         "-filter_complex",
-        f"[1:v]scale=iw/4:ih/4[ov];[0:v][ov]overlay={pos}:eof_action=pass[v]",
+        f"[1:v][0:v]scale2ref=h=main_h/3:w=-2[ov][base];[base][ov]overlay={pos}:eof_action=pass[v]",
         "-map", "[v]",
         "-map", "0:a?",
         "-c:v", "libx264", "-crf", "23",

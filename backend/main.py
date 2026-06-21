@@ -10,7 +10,7 @@ Endpoints:
 
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -70,7 +70,7 @@ def process_url(req: ProcessRequest):
 def process_upload(
     file: UploadFile = File(...),
     pip_position: str = "bottom-right",
-    transcript: str | None = None,
+    transcript: str | None = Form(None),
 ):
     try:
         file_bytes = file.file.read()
