@@ -2,59 +2,112 @@
 Core pipeline: video → captioned video + ASL signing overlay.
 
 Steps:
-  1. add_captions  → captioned source video + transcript
-  2. gloss          → ASL gloss tokens from transcript
-  3. concat         → stitch sign clips into continuous signing video
-  4. pip            → overlay signing video onto captioned source
+  1. transcript  → from manual input or Pika transcribe_audio
+  2. gloss        → ASL gloss tokens from transcript (Claude)
+  3. lookup       → match tokens to local source clip files
+  4. concat       → stitch clips with local ffmpeg
+  5. pip          → overlay signing video with local ffmpeg
 """
 
 import pika_client as pika
 from gloss import to_asl_gloss
 import dictionary as dict_
+import local_ffmpeg
 
 
-def process_video(video_url: str, pip_position: str = "bottom-right") -> dict:
-    # Step 1: transcribe + burn captions in one call
-    print(f"[1/4] Adding captions...")
-    captions_result = pika.add_captions(video_url, style="classic")
-    captioned_url = captions_result["url"]
-    transcript = captions_result["transcript"]
+def _fuzzy_local_lookup(token: str) -> str | None:
+    """Exact match first, then strip common suffixes for a stem match."""
+    path = dict_.local_lookup(token)
+    if path:
+        return path
+    word = token.lower()
+    for suffix in ("ing", "ed", "es", "s", "er", "ly"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            path = dict_.local_lookup(word[: -len(suffix)])
+            if path:
+                return path
+    return None
+
+
+def process_video(
+    video_url: str,
+    pip_position: str = "bottom-right",
+    transcript_override: str | None = None,
+    video_bytes: bytes | None = None,
+    video_filename: str = "upload.mp4",
+) -> dict:
+    # Step 1: get transcript
+    if transcript_override:
+        print("[1/4] Using provided transcript.")
+        transcript = transcript_override
+        captioned_url = video_url
+    else:
+        print("[1/4] Transcribing via Pika...")
+        try:
+            result = pika.add_captions(video_url, style="classic")
+            transcript = result.get("transcript", "")
+            captioned_url = result.get("url") or video_url
+        except Exception as e:
+            raise ValueError(
+                f"Auto-transcription failed: {e}. "
+                "Please paste the transcript manually in the Transcript field."
+            )
+        if not transcript:
+            raise ValueError(
+                "Could not extract transcript from video. "
+                "Please paste the transcript manually in the Transcript field."
+            )
     print(f"  Transcript: {transcript[:80]}...")
 
-    # Step 2: convert transcript to ASL gloss
-    print(f"[2/4] Converting to ASL gloss...")
+    # Step 2: convert to ASL gloss
+    print("[2/4] Converting to ASL gloss...")
     gloss_tokens = to_asl_gloss(transcript)
     print(f"  Gloss: {' '.join(gloss_tokens)}")
 
-    # Step 3: look up sign clips and concat
-    print(f"[3/4] Looking up sign clips...")
-    clip_urls = []
+    # Step 3: match tokens to local clip files
+    print("[3/4] Looking up sign clips...")
+    clip_paths = []
     missing = []
     for token in gloss_tokens:
-        url = dict_.lookup(token)
-        if url:
-            clip_urls.append(url)
+        path = _fuzzy_local_lookup(token)
+        if path:
+            clip_paths.append(path)
         else:
             missing.append(token)
 
     if missing:
-        print(f"  Missing from dictionary: {missing}")
+        print(f"  Missing: {missing}")
 
-    if not clip_urls:
-        raise ValueError("No sign clips found. Dictionary may be empty.")
+    if not clip_paths:
+        raise ValueError(
+            f"No matching signs found for gloss: {' '.join(gloss_tokens) or '(empty)'}. "
+            "Try a simpler sentence using common words like: hello, want, eat, food, good, help."
+        )
 
-    print(f"  Found {len(clip_urls)}/{len(gloss_tokens)} signs. Concatenating...")
-    signing_video_url = pika.edit_concat(clip_urls)
+    print(f"  Found {len(clip_paths)}/{len(gloss_tokens)} signs.")
 
-    # Step 4: pip overlay
-    print(f"[4/4] Overlaying signing avatar...")
-    final_url = pika.edit_pip(captioned_url, signing_video_url, position=pip_position)
+    # Step 4: concat clips locally
+    print("[3/4] Concatenating sign clips...")
+    signing_path = local_ffmpeg.concat(clip_paths)
+
+    # Step 5: get base video as local file
+    print("[4/4] Overlaying signing avatar...")
+    if video_bytes is not None:
+        import tempfile, os
+        ext = os.path.splitext(video_filename)[1] or ".mp4"
+        base_path = tempfile.mktemp(suffix=ext)
+        with open(base_path, "wb") as f:
+            f.write(video_bytes)
+    else:
+        base_path = local_ffmpeg.download_video(video_url)
+
+    output_path = local_ffmpeg.pip_overlay(base_path, signing_path, pip_position)
 
     return {
-        "output_url": final_url,
+        "output_url": f"http://localhost:8000{output_path}",
         "transcript": transcript,
         "gloss": gloss_tokens,
-        "signs_found": len(clip_urls),
+        "signs_found": len(clip_paths),
         "signs_total": len(gloss_tokens),
         "missing_signs": missing,
     }

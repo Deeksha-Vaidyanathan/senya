@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 INDEX_PATH = Path(__file__).parent.parent / "dictionary" / "index.json"
+SOURCE_DIR = Path(__file__).parent.parent / "dictionary" / "source"
 
 _index: dict = {}
 
@@ -19,6 +20,16 @@ def lookup(word: str) -> str | None:
     entry = _index.get(word.lower())
     if entry and entry.get("pika_asset_url"):
         return entry["pika_asset_url"]
+    return None
+
+def local_lookup(word: str) -> str | None:
+    """Return the local file path for a word's source clip, or None."""
+    entry = _index.get(word.lower())
+    if not entry or not entry.get("source"):
+        return None
+    local_path = SOURCE_DIR / Path(entry["source"]).name
+    if local_path.exists():
+        return str(local_path)
     return None
 
 def stats() -> dict:

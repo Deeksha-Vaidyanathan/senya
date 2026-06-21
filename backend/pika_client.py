@@ -6,38 +6,33 @@ No API key required — uses the locally authenticated Claude Code session.
 import json
 import subprocess
 
-MCP_CONFIG = json.dumps({
-    "mcpServers": {
-        "pika-mcp": {
-            "type": "url",
-            "url": "https://mcp.pika.me/api/mcp"
-        }
-    }
-})
-
 def _claude(prompt: str, schema: dict) -> dict:
     """Run a claude -p call with Pika MCP and return parsed structured output."""
     cmd = [
         "claude", "-p", prompt,
         "--output-format", "json",
         "--json-schema", json.dumps(schema),
-        "--mcp-config", MCP_CONFIG,
         "--allowedTools", "mcp__pika-mcp__*",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if result.returncode != 0:
         raise RuntimeError(f"claude CLI error: {result.stderr}")
-
     outer = json.loads(result.stdout)
-    # structured output lives in outer["structured_output"]
+    if "structured_output" not in outer or not outer["structured_output"]:
+        raise RuntimeError(
+            f"Pika MCP did not return structured output. "
+            f"Response: {outer.get('result', '')[:200]}"
+        )
     return outer["structured_output"]
 
 
 def add_captions(video_url: str, style: str = "classic") -> dict:
     """Returns {url, transcript}."""
     return _claude(
-        f'Use the Pika add_captions tool on this video: {video_url} with style="{style}". '
-        f'Return the output video URL and the transcript text.',
+        f'Do two things with this video: {video_url}. '
+        f'1) Use the Pika transcribe_audio tool to get the transcript text. '
+        f'2) Use the Pika add_captions tool with style="{style}" to get the captioned video URL. '
+        f'Return both the captioned video URL and the transcript text.',
         {
             "type": "object",
             "properties": {
@@ -51,7 +46,6 @@ def add_captions(video_url: str, style: str = "classic") -> dict:
 
 def upload_asset(file_bytes: bytes, filename: str) -> str:
     """Upload a local file via Pika and return the hosted URL."""
-    import tempfile, os
     with tempfile.NamedTemporaryFile(suffix=os.path.splitext(filename)[1], delete=False) as f:
         f.write(file_bytes)
         tmp_path = f.name
@@ -82,7 +76,10 @@ def edit_concat(clip_urls: list[str]) -> str:
             "required": ["url"]
         }
     )
-    return result["url"]
+    url = result.get("url", "")
+    if not url:
+        raise RuntimeError("Pika edit_concat returned no URL — is Pika MCP connected?")
+    return url
 
 
 def edit_pip(base_url: str, overlay_url: str, position: str = "bottom-right") -> str:
@@ -97,4 +94,7 @@ def edit_pip(base_url: str, overlay_url: str, position: str = "bottom-right") ->
             "required": ["url"]
         }
     )
-    return result["url"]
+    url = result.get("url", "")
+    if not url:
+        raise RuntimeError("Pika edit_pip returned no URL — is Pika MCP connected?")
+    return url

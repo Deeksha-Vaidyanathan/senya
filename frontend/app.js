@@ -34,15 +34,16 @@ fileInput.addEventListener("change", () => {
 document.getElementById("submit-btn").addEventListener("click", async () => {
   const activeTab = document.querySelector(".tab.active").dataset.tab;
   const position = document.getElementById("pip-position").value;
+  const transcript = document.getElementById("transcript-input").value.trim() || null;
 
   if (activeTab === "url") {
     const url = document.getElementById("video-url").value.trim();
     if (!url) return alert("Please enter a video URL.");
-    await runPipeline(() => processUrl(url, position));
+    await runPipeline(() => processUrl(url, position, transcript));
   } else {
     const file = fileInput.files[0];
     if (!file) return alert("Please select a video file.");
-    await runPipeline(() => processUpload(file, position));
+    await runPipeline(() => processUpload(file, position, transcript));
   }
 });
 
@@ -50,19 +51,20 @@ document.getElementById("retry-btn").addEventListener("click", () => {
   hide("error-box"); hide("result-section");
 });
 
-async function processUrl(url, position) {
+async function processUrl(url, position, transcript) {
   const resp = await fetch(`${API}/process`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ video_url: url, pip_position: position }),
+    body: JSON.stringify({ video_url: url, pip_position: position, transcript }),
   });
   if (!resp.ok) throw new Error((await resp.json()).detail || "Server error");
   return resp.json();
 }
 
-async function processUpload(file, position) {
+async function processUpload(file, position, transcript) {
   const form = new FormData();
   form.append("file", file);
+  if (transcript) form.append("transcript", transcript);
   const resp = await fetch(`${API}/process/upload?pip_position=${position}`, {
     method: "POST",
     body: form,
